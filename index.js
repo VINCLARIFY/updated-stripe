@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 const app = express();
@@ -14,7 +15,7 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -31,7 +32,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting middleware
-const rateLimit = require('express-rate-limit');
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100 // limit each IP to 100 requests per windowMs
@@ -191,12 +191,6 @@ app.post('/api/capture-paypal-order', async (req, res) => {
     }
 
     const captureData = await captureResponse.json();
-
-    // Here you would typically:
-    // 1. Save the transaction to your database
-    // 2. Generate the VIN report
-    // 3. Send confirmation email
-    // 4. Prepare download link
 
     // Mock response with report generation details
     const responseData = {
