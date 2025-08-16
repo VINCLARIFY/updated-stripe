@@ -72,6 +72,46 @@ app.post("/api/create-paypal-order", async (req, res) => {
   }
 });
 
+// PayPal Order Capture
+app.post("/api/capture-paypal-order", async (req, res) => {
+  try {
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({ error: "Missing orderId" });
+    }
+
+    const authResponse = await fetch("https://api-m.sandbox.paypal.com/v1/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: "grant_type=client_credentials"
+    });
+
+    const { access_token } = await authResponse.json();
+
+    const captureResponse = await fetch(`https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${access_token}`
+      }
+    });
+
+    const captureData = await captureResponse.json();
+    res.json(captureData);
+
+  } catch (error) {
+    console.error("PayPal capture error:", error);
+    res.status(500).json({
+      error: "Failed to capture PayPal order",
+      details: error.message
+    });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
