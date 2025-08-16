@@ -1,36 +1,39 @@
 import express from "express";
 import cors from "cors";
-import fetch from "node-fetch";
 import dotenv from "dotenv";
+import { default as fetch } from "node-fetch";
 
 dotenv.config();
 const app = express();
 
-// ✅ Yahan apna frontend domain allow karo
+// CORS configuration
 app.use(cors({
-  origin: ["https://vinclarify.info"],  // tumhara frontend domain
-  methods: ["GET", "POST"],
+  origin: "https://vinclarify.info",
+  methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"]
 }));
 
 app.use(express.json());
 
-// ✅ Test route
+// Test route
 app.get("/", (req, res) => {
   res.send("Server is running with CORS fixed 🚀");
 });
 
-// ✅ PayPal routes
+// PayPal routes
 app.post("/create-paypal-order", async (req, res) => {
   try {
+    const { amount = "10.00" } = req.body;
+    
     const auth = await fetch("https://api-m.sandbox.paypal.com/v1/oauth2/token", {
       method: "POST",
       headers: {
-        "Authorization": "Basic " + Buffer.from(process.env.PAYPAL_CLIENT_ID + ":" + process.env.PAYPAL_CLIENT_SECRET).toString("base64"),
+        "Authorization": "Basic " + Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString("base64"),
         "Content-Type": "application/x-www-form-urlencoded"
       },
       body: "grant_type=client_credentials"
     });
+    
     const { access_token } = await auth.json();
 
     const order = await fetch("https://api-m.sandbox.paypal.com/v2/checkout/orders", {
@@ -41,29 +44,36 @@ app.post("/create-paypal-order", async (req, res) => {
       },
       body: JSON.stringify({
         intent: "CAPTURE",
-        purchase_units: [{ amount: { currency_code: "USD", value: "10.00" } }]
+        purchase_units: [{
+          amount: { 
+            currency_code: "USD", 
+            value: amount.toString() 
+          }
+        }]
       })
     });
 
     const data = await order.json();
     res.json(data);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+    console.error("PayPal create order error:", err);
+    res.status(500).json({ error: "Failed to create PayPal order" });
   }
 });
 
 app.post("/capture-paypal-order/:orderID", async (req, res) => {
   try {
     const { orderID } = req.params;
+    
     const auth = await fetch("https://api-m.sandbox.paypal.com/v1/oauth2/token", {
       method: "POST",
       headers: {
-        "Authorization": "Basic " + Buffer.from(process.env.PAYPAL_CLIENT_ID + ":" + process.env.PAYPAL_CLIENT_SECRET).toString("base64"),
+        "Authorization": "Basic " + Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString("base64"),
         "Content-Type": "application/x-www-form-urlencoded"
       },
       body: "grant_type=client_credentials"
     });
+    
     const { access_token } = await auth.json();
 
     const capture = await fetch(`https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`, {
@@ -77,8 +87,8 @@ app.post("/capture-paypal-order/:orderID", async (req, res) => {
     const data = await capture.json();
     res.json(data);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+    console.error("PayPal capture error:", err);
+    res.status(500).json({ error: "Failed to capture PayPal order" });
   }
 });
 
