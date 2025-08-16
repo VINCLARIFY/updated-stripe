@@ -1,109 +1,86 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const paypal = require("@paypal/checkout-server-sdk");
+import express from "express";
+import cors from "cors";
+import fetch from "node-fetch";
+import dotenv from "dotenv";
 
+dotenv.config();
 const app = express();
 
-// ✅ Allowed domains
-const corsOptions = {
-  origin: [
-    "https://vinclarify.info",
-    "https://www.vinclarify.info",
-    "http://localhost:3000" // local testing
-  ],
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 200
-};
+// ✅ Yahan apna frontend domain allow karo
+app.use(cors({
+  origin: ["https://vinclarify.info"],  // tumhara frontend domain
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"]
+}));
 
-app.use(cors(corsOptions));
-app.use(bodyParser.json());
+app.use(express.json());
 
-// ✅ PayPal environment setup
-const environment =
-  process.env.PAYPAL_ENVIRONMENT === "production"
-    ? new paypal.core.LiveEnvironment(
-        process.env.PAYPAL_CLIENT_ID,
-        process.env.PAYPAL_CLIENT_SECRET
-      )
-    : new paypal.core.SandboxEnvironment(
-        process.env.PAYPAL_CLIENT_ID,
-        process.env.PAYPAL_CLIENT_SECRET
-      );
-
-const client = new paypal.core.PayPalHttpClient(environment);
-
-// ✅ Health check route
+// ✅ Test route
 app.get("/", (req, res) => {
-  res.send("Server is running ✅");
+  res.send("Server is running with CORS fixed 🚀");
 });
 
-app.get("/health", (req, res) => {
-  res.json({ status: "OK", timestamp: new Date() });
-});
-
-// ✅ Create PayPal Order
+// ✅ PayPal routes
 app.post("/create-paypal-order", async (req, res) => {
   try {
-    const { amount, currency = "USD", vin, plan } = req.body;
+    const auth = await fetch("https://api-m.sandbox.paypal.com/v1/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Authorization": "Basic " + Buffer.from(process.env.PAYPAL_CLIENT_ID + ":" + process.env.PAYPAL_CLIENT_SECRET).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: "grant_type=client_credentials"
+    });
+    const { access_token } = await auth.json();
 
-    if (!amount || !vin || !plan) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const request = new paypal.orders.OrdersCreateRequest();
-    request.prefer("return=representation");
-    request.requestBody({
-      intent: "CAPTURE",
-      purchase_units: [
-        {
-          amount: { currency_code: currency, value: amount.toString() },
-          description: `VIN Report for ${vin} (${plan} plan)`
-        }
-      ]
+    const order = await fetch("https://api-m.sandbox.paypal.com/v2/checkout/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${access_token}`
+      },
+      body: JSON.stringify({
+        intent: "CAPTURE",
+        purchase_units: [{ amount: { currency_code: "USD", value: "10.00" } }]
+      })
     });
 
-    const order = await client.execute(request);
-
-    res.json({
-      id: order.result.id,
-      status: order.result.status
-    });
+    const data = await order.json();
+    res.json(data);
   } catch (err) {
-    console.error("PayPal Order Create Error:", err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "Something went wrong" });
   }
 });
 
-// ✅ Capture PayPal Order
-app.post("/capture-paypal-order", async (req, res) => {
+app.post("/capture-paypal-order/:orderID", async (req, res) => {
   try {
-    const { orderID, vin, plan, ...customerData } = req.body;
-
-    if (!orderID) {
-      return res.status(400).json({ error: "Missing order ID" });
-    }
-
-    const request = new paypal.orders.OrdersCaptureRequest(orderID);
-    request.requestBody({});
-    const capture = await client.execute(request);
-
-    res.json({
-      status: capture.result.status,
-      id: capture.result.purchase_units[0].payments.captures[0].id,
-      payer_email: capture.result.payer.email_address,
-      vin,
-      plan,
-      customerData
+    const { orderID } = req.params;
+    const auth = await fetch("https://api-m.sandbox.paypal.com/v1/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Authorization": "Basic " + Buffer.from(process.env.PAYPAL_CLIENT_ID + ":" + process.env.PAYPAL_CLIENT_SECRET).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: "grant_type=client_credentials"
     });
+    const { access_token } = await auth.json();
+
+    const capture = await fetch(`https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${access_token}`
+      }
+    });
+
+    const data = await capture.json();
+    res.json(data);
   } catch (err) {
-    console.error("PayPal Capture Error:", err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "Something went wrong" });
   }
 });
 
-// ✅ Start Server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
