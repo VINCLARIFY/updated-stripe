@@ -6,24 +6,13 @@ import fetch from "node-fetch";
 dotenv.config();
 const app = express();
 
-// ✅ CORS Configuration
-const allowedOrigins = [
-  "https://vinclarify.info",
-  "http://localhost:3000" // For local testing
-];
-
+// ✅ Middleware
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true
+  origin: "*",
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
-
-app.use(express.json());
+app.use(express.json()); // <-- Yeh zaroori hai
 
 // ✅ PayPal Credentials from .env
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
@@ -60,7 +49,7 @@ app.get("/api/health", (req, res) => {
 // 🛒 Create PayPal Order
 app.post("/api/create-paypal-order", async (req, res) => {
   try {
-    const { amount, currency } = req.body;
+    const { amount, currency } = req.body;  // <-- ab req.body kaam karega
     const accessToken = await getAccessToken();
 
     const orderRes = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
@@ -114,4 +103,4 @@ app.post("/api/capture-paypal-order", async (req, res) => {
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));  
