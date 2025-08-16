@@ -9,9 +9,8 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Configure environment
-let environment =
-  process.env.NODE_ENV === "production"
+const environment =
+  process.env.PAYPAL_ENVIRONMENT === "production"
     ? new paypal.core.LiveEnvironment(
         process.env.PAYPAL_CLIENT_ID,
         process.env.PAYPAL_CLIENT_SECRET
@@ -20,7 +19,6 @@ let environment =
         process.env.PAYPAL_CLIENT_ID,
         process.env.PAYPAL_CLIENT_SECRET
       );
-
 const client = new paypal.core.PayPalHttpClient(environment);
 
 // Health check
