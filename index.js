@@ -6,20 +6,20 @@ const paypal = require("@paypal/checkout-server-sdk");
 
 const app = express();
 
-// Configure CORS properly
+// Strict CORS configuration allowing only https://www.vinclarify.info
 const corsOptions = {
-  origin: [
-    'https://www.vinclarify.info',
-    'https://vinclarify.info',
-    'http://localhost:3000' // for development
-  ],
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  origin: 'https://vinclarify.info',
+  methods: ['POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+  optionsSuccessStatus: 200 // For legacy browser support
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Enable preflight for all routes
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
 app.use(bodyParser.json());
 
 const environment =
@@ -34,17 +34,11 @@ const environment =
       );
 const client = new paypal.core.PayPalHttpClient(environment);
 
-// Health check
-app.get("/health", (req, res) => {
-  res.json({ status: "OK", timestamp: new Date() });
-});
-
-// Create order
-app.post("/create-paypal-order", async (req, res) => {
+// Create order endpoint
+app.post("/create-paypal-order", cors(corsOptions), async (req, res) => {
   try {
     const { amount, currency = "USD", vin, plan } = req.body;
     
-    // Validate input
     if (!amount || !vin || !plan) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -57,8 +51,7 @@ app.post("/create-paypal-order", async (req, res) => {
         amount: { 
           currency_code: currency, 
           value: amount.toString() 
-        },
-        description: `VIN Report for ${vin} (${plan} plan)`
+        }
       }],
     });
     
@@ -73,31 +66,23 @@ app.post("/create-paypal-order", async (req, res) => {
   }
 });
 
-// Capture order
-app.post("/capture-paypal-order", async (req, res) => {
+// Capture order endpoint
+app.post("/capture-paypal-order", cors(corsOptions), async (req, res) => {
   try {
-    const { orderID, vin, plan, ...customerData } = req.body;
+    const { orderID } = req.body;
     
-    if (!orderID || !vin || !plan) {
-      return res.status(400).json({ error: "Missing required fields" });
+    if (!orderID) {
+      return res.status(400).json({ error: "Missing order ID" });
     }
 
     const request = new paypal.orders.OrdersCaptureRequest(orderID);
     request.requestBody({});
     const capture = await client.execute(request);
     
-    // Here you would typically:
-    // 1. Save the transaction to your database
-    // 2. Generate the VIN report
-    // 3. Send confirmation email
-    
     res.json({
       status: "COMPLETED",
       id: capture.result.purchase_units[0].payments.captures[0].id,
-      payer_email: capture.result.payer.email_address,
-      vin,
-      plan,
-      customerData
+      payer_email: capture.result.payer.email_address
     });
   } catch (err) {
     console.error(err);
