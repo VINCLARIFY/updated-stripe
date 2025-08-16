@@ -7,7 +7,7 @@ const app = express();
 
 // Enhanced CORS configuration
 const corsOptions = {
-  origin: "https://www.vinclarify.info",
+  origin: "https://vinclarify.info",
   methods: ["POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
   credentials: true
@@ -75,5 +75,5 @@ app.post("/api/create-paypal-order", async (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`CORS configured for: https://www.vinclarify.info`);
+  console.log(`CORS configured for: https://vinclarify.info`);
 });
