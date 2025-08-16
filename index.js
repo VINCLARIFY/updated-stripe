@@ -11,7 +11,7 @@ const corsOptions = {
   origin: [
     "https://vinclarify.info",
     "https://www.vinclarify.info",
-    "http://localhost:3000" // for local testing
+    "http://localhost:3000" // local testing
   ],
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -19,7 +19,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
 app.use(bodyParser.json());
 
 // ✅ PayPal environment setup
@@ -37,6 +36,10 @@ const environment =
 const client = new paypal.core.PayPalHttpClient(environment);
 
 // ✅ Health check route
+app.get("/", (req, res) => {
+  res.send("Server is running ✅");
+});
+
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date() });
 });
@@ -56,10 +59,7 @@ app.post("/create-paypal-order", async (req, res) => {
       intent: "CAPTURE",
       purchase_units: [
         {
-          amount: {
-            currency_code: currency,
-            value: amount.toString()
-          },
+          amount: { currency_code: currency, value: amount.toString() },
           description: `VIN Report for ${vin} (${plan} plan)`
         }
       ]
