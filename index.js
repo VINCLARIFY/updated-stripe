@@ -6,9 +6,10 @@ import fetch from "node-fetch";
 dotenv.config();
 const app = express();
 
+// ✅ CORS Configuration
 const allowedOrigins = [
   "https://vinclarify.info",
-  "http://localhost:3000"
+  "http://localhost:3000" // For local testing
 ];
 
 app.use(cors({
@@ -24,15 +25,15 @@ app.use(cors({
 
 app.use(express.json());
 
-// ✅ PayPal Credentials
+// ✅ PayPal Credentials from .env
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_SECRET = process.env.PAYPAL_SECRET;
-const PAYPAL_API = "https://api-m.paypal.com"; // ✅ Live environment
- // live karna ho to api-m.paypal.com
+const PAYPAL_API = process.env.PAYPAL_API || "https://api-m.sandbox.paypal.com";
 
-// 🔑 Get Access Token from PayPal
+// 🔑 Function to Get Access Token
 async function getAccessToken() {
   const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString("base64");
+
   const res = await fetch(`${PAYPAL_API}/v1/oauth2/token`, {
     method: "POST",
     headers: {
@@ -41,16 +42,22 @@ async function getAccessToken() {
     },
     body: "grant_type=client_credentials"
   });
+
+  if (!res.ok) {
+    const errorData = await res.text();
+    throw new Error(`Failed to get access token: ${errorData}`);
+  }
+
   const data = await res.json();
   return data.access_token;
 }
 
 // 🚑 Health Check
 app.get("/api/health", (req, res) => {
-  res.json({ status: "healthy" });
+  res.json({ status: "healthy", env: PAYPAL_API.includes("sandbox") ? "sandbox" : "live" });
 });
 
-// 🛒 Create Order
+// 🛒 Create PayPal Order
 app.post("/api/create-paypal-order", async (req, res) => {
   try {
     const { amount, currency } = req.body;
@@ -64,9 +71,14 @@ app.post("/api/create-paypal-order", async (req, res) => {
       },
       body: JSON.stringify({
         intent: "CAPTURE",
-        purchase_units: [{
-          amount: { currency_code: currency || "USD", value: amount.toString() }
-        }]
+        purchase_units: [
+          {
+            amount: {
+              currency_code: currency || "USD",
+              value: amount.toString()
+            }
+          }
+        ]
       })
     });
 
@@ -78,7 +90,7 @@ app.post("/api/create-paypal-order", async (req, res) => {
   }
 });
 
-// 💳 Capture Order
+// 💳 Capture PayPal Order
 app.post("/api/capture-paypal-order", async (req, res) => {
   try {
     const { orderID } = req.body;
@@ -100,5 +112,6 @@ app.post("/api/capture-paypal-order", async (req, res) => {
   }
 });
 
+// ✅ Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
